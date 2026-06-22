@@ -1,0 +1,987 @@
+(() => {
+  const GRID_COLS = 6;
+  const MIN_WIDGET_WIDTH = 1;
+  const MIN_WIDGET_HEIGHT = 1;
+
+  let state = {
+    widgets: []
+  };
+
+  let draggedWidget = null;
+  let resizingWidget = null;
+  let resizeStartPos = { x: 0, y: 0, w: 0, h: 0 };
+  let currentWidgetConfig = null;
+  let contextMenu = null;
+
+  // DOM 引用
+  const gridContainer = document.getElementById('gridContainer');
+  const addWidgetBtn = document.getElementById('addWidgetBtn');
+  const widgetModal = document.getElementById('widgetModal');
+  const configModal = document.getElementById('configModal');
+  const configContent = document.getElementById('configContent');
+  const configTitle = document.getElementById('configTitle');
+
+  // 工具函数
+  const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+  const escapeHtml = (str) => {
+    if (str == null) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+
+  // 状态管理
+  const loadState = async () => {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      const res = await chrome.storage.sync.get('iblank_widgets');
+      if (res.iblank_widgets) state = res.iblank_widgets;
+    } else {
+      const raw = localStorage.getItem('iblank_widgets');
+      if (raw) state = JSON.parse(raw);
+    }
+  };
+
+  const saveState = async () => {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      await chrome.storage.sync.set({ iblank_widgets: state });
+    } else {
+      localStorage.setItem('iblank_widgets', JSON.stringify(state));
+    }
+  };
+
+  // 寻找空闲位置
+  const findFreePosition = (w, h) => {
+    const occupied = new Map();
+
+    state.widgets.forEach(widget => {
+      for (let row = widget.row; row < widget.row + widget.height; row++) {
+        for (let col = widget.col; col < widget.col + widget.width; col++) {
+          occupied.set(`${row},${col}`, true);
+        }
+      }
+    });
+
+    const maxRow = Math.max(...state.widgets.map(w => w.row + w.height), 0);
+    const searchLimit = maxRow + 10;
+
+    for (let row = 0; row < searchLimit; row++) {
+      for (let col = 0; col <= GRID_COLS - w; col++) {
+        let free = true;
+        for (let r = row; r < row + h && free; r++) {
+          for (let c = col; c < col + w; c++) {
+            if (occupied.has(`${r},${c}`)) {
+              free = false;
+              break;
+            }
+          }
+        }
+        if (free) return { row, col };
+      }
+    }
+
+    return { row: maxRow, col: 0 };
+  };
+
+  // 检查位置是否可用
+  const canPlaceWidget = (widgetId, col, row, width, height) => {
+    if (col < 0 || col + width > GRID_COLS || row < 0) return false;
+
+    for (const widget of state.widgets) {
+      if (widget.id === widgetId) continue;
+
+      if (
+        col < widget.col + widget.width &&
+        col + width > widget.col &&
+        row < widget.row + widget.height &&
+        row + height > widget.row
+      ) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // Modal 管理
+  const openModal = (modal) => {
+    modal.setAttribute('aria-hidden', 'false');
+  };
+
+  const closeModal = (modal) => {
+    modal.setAttribute('aria-hidden', 'true');
+  };
+
+  // 右键菜单
+  const closeContextMenu = () => {
+    if (contextMenu) {
+      contextMenu.remove();
+      contextMenu = null;
+    }
+  };
+
+  const showContextMenu = (x, y, items, title) => {
+    closeContextMenu();
+
+    const menu = document.createElement('div');
+    menu.className = 'context-menu';
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+
+    if (title) {
+      menu.innerHTML += `<div class="context-menu-title">${escapeHtml(title)}</div>`;
+    }
+
+    items.forEach(item => {
+      if (item.divider) {
+        menu.innerHTML += '<div class="context-menu-divider"></div>';
+      } else {
+        const menuItem = document.createElement('div');
+        menuItem.className = 'context-menu-item' + (item.danger ? ' danger' : '');
+        menuItem.innerHTML = `<span>${item.icon || ''}</span><span>${escapeHtml(item.label)}</span>`;
+        menuItem.addEventListener('click', (e) => {
+          e.stopPropagation();
+          item.action();
+          closeContextMenu();
+        });
+        menu.appendChild(menuItem);
+      }
+    });
+
+    document.body.appendChild(menu);
+    contextMenu = menu;
+
+    // 确保菜单在屏幕内
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) {
+      menu.style.left = `${x - rect.width}px`;
+    }
+    if (rect.bottom > window.innerHeight) {
+      menu.style.top = `${y - rect.height}px`;
+    }
+  };
+
+  // 组件类型定义
+  const widgetTypes = {
+    webpage: {
+      name: '网页',
+      icon: '🔗',
+      defaultWidth: 1,
+      defaultHeight: 1,
+      render: (widget) => renderWebpageWidget(widget),
+      config: (widget, onSave) => renderWebpageConfig(widget, onSave)
+    },
+    clock: {
+      name: '时钟',
+      icon: '🕐',
+      defaultWidth: 2,
+      defaultHeight: 1,
+      render: (widget) => renderClockWidget(widget),
+      config: null
+    },
+    countdown: {
+      name: '倒计时',
+      icon: '⏱️',
+      defaultWidth: 2,
+      defaultHeight: 1,
+      render: (widget) => renderCountdownWidget(widget),
+      config: (widget, onSave) => renderCountdownConfig(widget, onSave)
+    },
+    note: {
+      name: '便签',
+      icon: '📝',
+      defaultWidth: 2,
+      defaultHeight: 2,
+      render: (widget) => renderNoteWidget(widget),
+      config: null
+    },
+    bookmarks: {
+      name: '收藏夹',
+      icon: '📚',
+      defaultWidth: 2,
+      defaultHeight: 2,
+      render: (widget) => renderBookmarksWidget(widget),
+      config: (widget, onSave) => renderBookmarksConfig(widget, onSave)
+    },
+    calendar: {
+      name: '日历',
+      icon: '📅',
+      defaultWidth: 2,
+      defaultHeight: 2,
+      render: (widget) => renderCalendarWidget(widget),
+      config: null
+    },
+    weather: {
+      name: '天气',
+      icon: '🌤️',
+      defaultWidth: 2,
+      defaultHeight: 1,
+      render: (widget) => renderWeatherWidget(widget),
+      config: (widget, onSave) => renderWeatherConfig(widget, onSave)
+    }
+  };
+
+  // 添加组件
+  const addWidget = (type) => {
+    const widgetType = widgetTypes[type];
+    if (!widgetType) return;
+
+    const { row, col } = findFreePosition(widgetType.defaultWidth, widgetType.defaultHeight);
+
+    const widget = {
+      id: uid(),
+      type,
+      col,
+      row,
+      width: widgetType.defaultWidth,
+      height: widgetType.defaultHeight,
+      data: {}
+    };
+
+    state.widgets.push(widget);
+    saveState();
+    render();
+  };
+
+  // 删除组件
+  const deleteWidget = async (id) => {
+    if (confirm('确定要删除这个组件吗？')) {
+      state.widgets = state.widgets.filter(w => w.id !== id);
+      await saveState();
+      render();
+    }
+  };
+
+  // 配置组件
+  const configureWidget = (widget) => {
+    const widgetType = widgetTypes[widget.type];
+    if (!widgetType || !widgetType.config) return;
+
+    currentWidgetConfig = widget;
+    configTitle.textContent = `配置${widgetType.name}`;
+
+    widgetType.config(widget, async (data) => {
+      widget.data = { ...widget.data, ...data };
+      await saveState();
+      render();
+      closeModal(configModal);
+    });
+
+    openModal(configModal);
+  };
+
+  // 渲染主界面
+  const render = () => {
+    gridContainer.innerHTML = '';
+
+    state.widgets.forEach(widget => {
+      const widgetEl = createWidgetElement(widget);
+      gridContainer.appendChild(widgetEl);
+    });
+
+    // 更新定时器
+    updateClocks();
+    updateCountdowns();
+  };
+
+  // 创建组件元素
+  const createWidgetElement = (widget) => {
+    const widgetType = widgetTypes[widget.type];
+    const el = document.createElement('div');
+    el.className = 'widget';
+    el.dataset.widgetId = widget.id;
+    el.draggable = true;
+
+    // 1x1的组件保持正方形
+    if (widget.width === 1 && widget.height === 1) {
+      el.classList.add('square');
+    }
+
+    // 设置位置和大小
+    const cellWidth = gridContainer.offsetWidth / GRID_COLS;
+    const gap = 16;
+
+    // 计算行高：如果是1x1，使用cellWidth保证正方形；否则使用minmax的最小值120px
+    const getRowHeight = (row) => {
+      // 检查这一行是否有1x1的组件
+      const hasSquare = state.widgets.some(w => 
+        w.row === row && w.width === 1 && w.height === 1
+      );
+      return hasSquare ? cellWidth : 120;
+    };
+
+    const rowHeight = getRowHeight(widget.row);
+
+    el.style.left = `${widget.col * (cellWidth + gap)}px`;
+    el.style.top = `${widget.row * (rowHeight + gap)}px`;
+    el.style.width = `${widget.width * cellWidth + (widget.width - 1) * gap}px`;
+    
+    if (widget.width === 1 && widget.height === 1) {
+      el.style.height = `${cellWidth}px`;
+    } else {
+      el.style.height = `${widget.height * rowHeight + (widget.height - 1) * gap}px`;
+    }
+
+    // 内容
+    const content = document.createElement('div');
+    content.className = 'widget-content';
+    content.innerHTML = widgetType.render(widget);
+
+    // 调整大小手柄
+    const resizeHandle = document.createElement('div');
+    resizeHandle.className = 'resize-handle';
+
+    el.appendChild(content);
+    el.appendChild(resizeHandle);
+
+    // 事件监听
+    el.addEventListener('dragstart', handleWidgetDragStart);
+    el.addEventListener('dragend', handleWidgetDragEnd);
+
+    // 右键菜单
+    el.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const items = [];
+      
+      if (widgetType.config) {
+        items.push({
+          icon: '⚙️',
+          label: '配置',
+          action: () => configureWidget(widget)
+        });
+      }
+
+      // 收藏夹特殊菜单
+      if (widget.type === 'bookmarks') {
+        items.push({
+          icon: '➕',
+          label: '添加书签',
+          action: () => configureWidget(widget)
+        });
+        
+        const layout = widget.data.layout || 'list';
+        items.push({
+          icon: layout === 'list' ? '🔲' : '📋',
+          label: layout === 'list' ? '切换到图标布局' : '切换到列表布局',
+          action: async () => {
+            widget.data.layout = layout === 'list' ? 'grid' : 'list';
+            await saveState();
+            render();
+          }
+        });
+      }
+
+      if (items.length > 0) {
+        items.push({ divider: true });
+      }
+
+      items.push({
+        icon: '🗑️',
+        label: '删除组件',
+        danger: true,
+        action: () => deleteWidget(widget.id)
+      });
+
+      showContextMenu(e.clientX, e.clientY, items, widgetType.icon + ' ' + widgetType.name);
+    });
+
+    resizeHandle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleResizeStart(e, widget, el);
+    });
+
+    // 为便签添加保存功能
+    if (widget.type === 'note') {
+      const textarea = content.querySelector('.note-textarea');
+      if (textarea) {
+        textarea.value = widget.data.text || '';
+        textarea.addEventListener('input', debounce(async (e) => {
+          widget.data.text = e.target.value;
+          await saveState();
+        }, 500));
+      }
+    }
+
+    return el;
+  };
+
+  // 拖拽处理
+  const handleWidgetDragStart = (e) => {
+    draggedWidget = e.currentTarget;
+    draggedWidget.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleWidgetDragEnd = (e) => {
+    draggedWidget.classList.remove('dragging');
+    draggedWidget = null;
+  };
+
+  // 调整大小处理
+  const handleResizeStart = (e, widget, el) => {
+    resizingWidget = { widget, el };
+    resizeStartPos = {
+      x: e.clientX,
+      y: e.clientY,
+      w: widget.width,
+      h: widget.height
+    };
+    el.classList.add('resizing');
+
+    document.addEventListener('mousemove', handleResizeMove);
+    document.addEventListener('mouseup', handleResizeEnd);
+  };
+
+  const handleResizeMove = (e) => {
+    if (!resizingWidget) return;
+
+    const { widget, el } = resizingWidget;
+    const cellWidth = gridContainer.offsetWidth / GRID_COLS;
+    const cellHeight = 120;
+    const gap = 16;
+
+    const deltaX = e.clientX - resizeStartPos.x;
+    const deltaY = e.clientY - resizeStartPos.y;
+
+    const newWidth = Math.max(MIN_WIDGET_WIDTH, Math.min(GRID_COLS - widget.col, resizeStartPos.w + Math.round(deltaX / (cellWidth + gap))));
+    const newHeight = Math.max(MIN_WIDGET_HEIGHT, resizeStartPos.h + Math.round(deltaY / (cellHeight + gap)));
+
+    if (canPlaceWidget(widget.id, widget.col, widget.row, newWidth, newHeight)) {
+      if (newWidth === 1 && newHeight === 1) {
+        el.style.width = `${cellWidth}px`;
+        el.style.height = `${cellWidth}px`;
+      } else {
+        el.style.width = `${newWidth * cellWidth + (newWidth - 1) * gap}px`;
+        el.style.height = `${newHeight * cellHeight + (newHeight - 1) * gap}px`;
+      }
+    }
+  };
+
+  const handleResizeEnd = async (e) => {
+    if (!resizingWidget) return;
+
+    const { widget, el } = resizingWidget;
+    const cellWidth = gridContainer.offsetWidth / GRID_COLS;
+    const cellHeight = 120;
+    const gap = 16;
+
+    const deltaX = e.clientX - resizeStartPos.x;
+    const deltaY = e.clientY - resizeStartPos.y;
+
+    const newWidth = Math.max(MIN_WIDGET_WIDTH, Math.min(GRID_COLS - widget.col, resizeStartPos.w + Math.round(deltaX / (cellWidth + gap))));
+    const newHeight = Math.max(MIN_WIDGET_HEIGHT, resizeStartPos.h + Math.round(deltaY / (cellHeight + gap)));
+
+    if (canPlaceWidget(widget.id, widget.col, widget.row, newWidth, newHeight)) {
+      widget.width = newWidth;
+      widget.height = newHeight;
+      await saveState();
+    }
+
+    el.classList.remove('resizing');
+    resizingWidget = null;
+
+    document.removeEventListener('mousemove', handleResizeMove);
+    document.removeEventListener('mouseup', handleResizeEnd);
+
+    render();
+  };
+
+  // 防抖函数
+  const debounce = (func, wait) => {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  };
+
+  // ========== 组件渲染函数 ==========
+
+  // 网页组件
+  const renderWebpageWidget = (widget) => {
+    const name = widget.data.name || '未命名';
+    const url = widget.data.url || '';
+    const icon = widget.data.icon || '';
+
+    if (!url) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">🔗</div>
+          <div class="empty-text">右键配置网页</div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="webpage-widget">
+        <a href="${escapeHtml(url)}" class="webpage-link" target="_blank">
+          ${icon ? 
+            `<img class="webpage-icon" src="${escapeHtml(icon)}" alt="" />` :
+            `<div class="webpage-icon fallback">${escapeHtml(name[0] || '?')}</div>`
+          }
+          <div class="webpage-name">${escapeHtml(name)}</div>
+        </a>
+      </div>
+    `;
+  };
+
+  const renderWebpageConfig = (widget, onSave) => {
+    configContent.innerHTML = `
+      <div class="config-form">
+        <label>
+          <span>名称</span>
+          <input type="text" id="webpageName" value="${escapeHtml(widget.data.name || '')}" placeholder="例如：GitHub" />
+        </label>
+        <label>
+          <span>地址</span>
+          <input type="url" id="webpageUrl" value="${escapeHtml(widget.data.url || '')}" placeholder="https://github.com" />
+        </label>
+      </div>
+    `;
+
+    document.getElementById('configConfirmBtn').onclick = () => {
+      const name = document.getElementById('webpageName').value.trim();
+      const url = document.getElementById('webpageUrl').value.trim();
+
+      if (!name || !url) return;
+
+      const icon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(new URL(url).hostname)}&sz=128`;
+
+      onSave({ name, url, icon });
+    };
+  };
+
+  // 时钟组件
+  const renderClockWidget = (widget) => {
+    return `
+      <div class="clock-widget">
+        <div class="clock-time" data-clock="${widget.id}">00:00:00</div>
+        <div class="clock-date" data-clock-date="${widget.id}">2024-01-01</div>
+      </div>
+    `;
+  };
+
+  const updateClocks = () => {
+    document.querySelectorAll('[data-clock]').forEach(el => {
+      const now = new Date();
+      el.textContent = now.toLocaleTimeString('zh-CN', { hour12: false });
+    });
+
+    document.querySelectorAll('[data-clock-date]').forEach(el => {
+      const now = new Date();
+      el.textContent = now.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long'
+      });
+    });
+  };
+
+  setInterval(updateClocks, 1000);
+
+  // 倒计时组件
+  const renderCountdownWidget = (widget) => {
+    const targetDate = widget.data.targetDate;
+
+    if (!targetDate) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">⏱️</div>
+          <div class="empty-text">右键配置倒计时</div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="countdown-widget">
+        <div class="countdown-label">${escapeHtml(widget.data.label || '倒计时')}</div>
+        <div class="countdown-time" data-countdown="${widget.id}" data-target="${targetDate}">--</div>
+      </div>
+    `;
+  };
+
+  const updateCountdowns = () => {
+    document.querySelectorAll('[data-countdown]').forEach(el => {
+      const target = new Date(el.dataset.target);
+      const now = new Date();
+      const diff = target - now;
+
+      if (diff <= 0) {
+        el.textContent = '已结束';
+        el.classList.add('countdown-expired');
+        return;
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      el.textContent = `${days}天 ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    });
+  };
+
+  setInterval(updateCountdowns, 1000);
+
+  const renderCountdownConfig = (widget, onSave) => {
+    configContent.innerHTML = `
+      <div class="config-form">
+        <label>
+          <span>标签</span>
+          <input type="text" id="countdownLabel" value="${escapeHtml(widget.data.label || '')}" placeholder="例如：高考倒计时" />
+        </label>
+        <label>
+          <span>目标日期</span>
+          <input type="datetime-local" id="countdownTarget" value="${widget.data.targetDate || ''}" />
+        </label>
+      </div>
+    `;
+
+    document.getElementById('configConfirmBtn').onclick = () => {
+      onSave({
+        label: document.getElementById('countdownLabel').value,
+        targetDate: document.getElementById('countdownTarget').value
+      });
+    };
+  };
+
+  // 便签组件
+  const renderNoteWidget = (widget) => {
+    return `<textarea class="note-textarea" placeholder="在这里输入笔记...">${escapeHtml(widget.data.text || '')}</textarea>`;
+  };
+
+  // 收藏夹组件
+  const renderBookmarksWidget = (widget) => {
+    const bookmarks = widget.data.bookmarks || [];
+    const layout = widget.data.layout || 'list';
+
+    if (bookmarks.length === 0) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">📚</div>
+          <div class="empty-text">右键添加书签</div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="bookmarks-widget">
+        <div class="bookmarks-list ${layout === 'grid' ? 'grid-layout' : ''}">
+          ${bookmarks.map((bookmark, idx) => `
+            <div class="bookmark-item" data-url="${escapeHtml(bookmark.url)}" data-idx="${idx}">
+              ${bookmark.icon ?
+                `<img class="bookmark-icon" src="${escapeHtml(bookmark.icon)}" alt="" />` :
+                `<div class="bookmark-icon fallback">${escapeHtml(bookmark.name[0] || '?')}</div>`
+              }
+              <span class="bookmark-name">${escapeHtml(bookmark.name)}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  };
+
+  const renderBookmarksConfig = (widget, onSave) => {
+    configContent.innerHTML = `
+      <div class="config-form">
+        <label>
+          <span>名称</span>
+          <input type="text" id="bookmarkName" placeholder="例如：GitHub" />
+        </label>
+        <label>
+          <span>地址</span>
+          <input type="url" id="bookmarkUrl" placeholder="https://github.com" />
+        </label>
+      </div>
+    `;
+
+    document.getElementById('configConfirmBtn').onclick = () => {
+      const name = document.getElementById('bookmarkName').value.trim();
+      const url = document.getElementById('bookmarkUrl').value.trim();
+
+      if (!name || !url) return;
+
+      const bookmarks = widget.data.bookmarks || [];
+      const icon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(new URL(url).hostname)}&sz=128`;
+
+      bookmarks.push({ name, url, icon });
+      onSave({ bookmarks });
+    };
+  };
+
+  // 编辑书签配置
+  const renderEditBookmarkConfig = (widget, bookmarkIdx, onSave) => {
+    const bookmark = widget.data.bookmarks[bookmarkIdx];
+    
+    configContent.innerHTML = `
+      <div class="config-form">
+        <label>
+          <span>名称</span>
+          <input type="text" id="bookmarkName" value="${escapeHtml(bookmark.name)}" placeholder="例如：GitHub" />
+        </label>
+        <label>
+          <span>地址</span>
+          <input type="url" id="bookmarkUrl" value="${escapeHtml(bookmark.url)}" placeholder="https://github.com" />
+        </label>
+      </div>
+    `;
+
+    document.getElementById('configConfirmBtn').onclick = () => {
+      const name = document.getElementById('bookmarkName').value.trim();
+      const url = document.getElementById('bookmarkUrl').value.trim();
+
+      if (!name || !url) return;
+
+      const icon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(new URL(url).hostname)}&sz=128`;
+
+      widget.data.bookmarks[bookmarkIdx] = { name, url, icon };
+      onSave(widget.data);
+    };
+  };
+
+  // 日历组件
+  const renderCalendarWidget = (widget) => {
+    const now = new Date();
+    const year = widget.data.year || now.getFullYear();
+    const month = widget.data.month !== undefined ? widget.data.month : now.getMonth();
+
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startDay = firstDay.getDay();
+
+    const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+
+    let calendarHtml = `
+      <div class="calendar-widget">
+        <div class="calendar-header">
+          <div class="calendar-month">${year}年 ${monthNames[month]}</div>
+          <div class="calendar-nav">
+            <button class="calendar-prev" data-widget="${widget.id}">‹</button>
+            <button class="calendar-next" data-widget="${widget.id}">›</button>
+          </div>
+        </div>
+        <div class="calendar-grid">
+          <div class="calendar-day header">日</div>
+          <div class="calendar-day header">一</div>
+          <div class="calendar-day header">二</div>
+          <div class="calendar-day header">三</div>
+          <div class="calendar-day header">四</div>
+          <div class="calendar-day header">五</div>
+          <div class="calendar-day header">六</div>
+    `;
+
+    // 填充空白
+    for (let i = 0; i < startDay; i++) {
+      const prevMonthDay = new Date(year, month, 0 - (startDay - i - 1)).getDate();
+      calendarHtml += `<div class="calendar-day other-month">${prevMonthDay}</div>`;
+    }
+
+    // 填充日期
+    const today = new Date();
+    for (let day = 1; day <= daysInMonth; day++) {
+      const isToday = year === today.getFullYear() && month === today.getMonth() && day === today.getDate();
+      calendarHtml += `<div class="calendar-day ${isToday ? 'today' : ''}">${day}</div>`;
+    }
+
+    // 填充下月开头
+    const remainingCells = 42 - (startDay + daysInMonth);
+    for (let i = 1; i <= remainingCells; i++) {
+      calendarHtml += `<div class="calendar-day other-month">${i}</div>`;
+    }
+
+    calendarHtml += '</div></div>';
+
+    return calendarHtml;
+  };
+
+  // 天气组件
+  const renderWeatherWidget = (widget) => {
+    const location = widget.data.location || '未设置';
+
+    return `
+      <div class="weather-widget">
+        <div class="empty-state">
+          <div class="empty-icon">🌤️</div>
+          <div class="empty-text">天气组件（演示）<br/>${escapeHtml(location)}</div>
+        </div>
+      </div>
+    `;
+  };
+
+  const renderWeatherConfig = (widget, onSave) => {
+    configContent.innerHTML = `
+      <div class="config-form">
+        <label>
+          <span>城市</span>
+          <input type="text" id="weatherLocation" value="${escapeHtml(widget.data.location || '')}" placeholder="例如：北京" />
+        </label>
+      </div>
+    `;
+
+    document.getElementById('configConfirmBtn').onclick = () => {
+      onSave({
+        location: document.getElementById('weatherLocation').value
+      });
+    };
+  };
+
+  // ========== 事件监听 ==========
+
+  // 添加组件按钮
+  addWidgetBtn.addEventListener('click', () => {
+    openModal(widgetModal);
+  });
+
+  // 组件类型选择
+  document.querySelectorAll('.widget-type-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const type = card.dataset.type;
+      addWidget(type);
+      closeModal(widgetModal);
+    });
+  });
+
+  // Modal 关闭
+  document.getElementById('widgetCancelBtn').addEventListener('click', () => {
+    closeModal(widgetModal);
+  });
+
+  document.getElementById('configCancelBtn').addEventListener('click', () => {
+    closeModal(configModal);
+  });
+
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        closeModal(overlay.parentElement);
+      }
+    });
+  });
+
+  // 事件委托：收藏夹和日历操作
+  gridContainer.addEventListener('click', async (e) => {
+    // 书签点击
+    if (e.target.closest('.bookmark-item') && !e.target.closest('.bookmark-action')) {
+      const item = e.target.closest('.bookmark-item');
+      const url = item.dataset.url;
+      if (url) window.open(url, '_blank');
+      return;
+    }
+
+    // 日历导航
+    if (e.target.classList.contains('calendar-prev')) {
+      const widgetId = e.target.dataset.widget;
+      const widget = state.widgets.find(w => w.id === widgetId);
+      if (widget) {
+        const now = new Date();
+        const year = widget.data.year || now.getFullYear();
+        const month = widget.data.month !== undefined ? widget.data.month : now.getMonth();
+
+        const newMonth = month === 0 ? 11 : month - 1;
+        const newYear = month === 0 ? year - 1 : year;
+
+        widget.data.year = newYear;
+        widget.data.month = newMonth;
+        await saveState();
+        render();
+      }
+      return;
+    }
+
+    if (e.target.classList.contains('calendar-next')) {
+      const widgetId = e.target.dataset.widget;
+      const widget = state.widgets.find(w => w.id === widgetId);
+      if (widget) {
+        const now = new Date();
+        const year = widget.data.year || now.getFullYear();
+        const month = widget.data.month !== undefined ? widget.data.month : now.getMonth();
+
+        const newMonth = month === 11 ? 0 : month + 1;
+        const newYear = month === 11 ? year + 1 : year;
+
+        widget.data.year = newYear;
+        widget.data.month = newMonth;
+        await saveState();
+        render();
+      }
+      return;
+    }
+  });
+
+  // 书签右键菜单
+  gridContainer.addEventListener('contextmenu', (e) => {
+    const bookmarkItem = e.target.closest('.bookmark-item');
+    if (bookmarkItem) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const widgetEl = bookmarkItem.closest('.widget');
+      const widgetId = widgetEl.dataset.widgetId;
+      const widget = state.widgets.find(w => w.id === widgetId);
+      const idx = parseInt(bookmarkItem.dataset.idx);
+
+      if (widget && widget.data.bookmarks && widget.data.bookmarks[idx]) {
+        const bookmark = widget.data.bookmarks[idx];
+
+        showContextMenu(e.clientX, e.clientY, [
+          {
+            icon: '✏️',
+            label: '编辑书签',
+            action: () => {
+              currentWidgetConfig = widget;
+              configTitle.textContent = '编辑书签';
+              renderEditBookmarkConfig(widget, idx, async (data) => {
+                await saveState();
+                render();
+                closeModal(configModal);
+              });
+              openModal(configModal);
+            }
+          },
+          { divider: true },
+          {
+            icon: '🗑️',
+            label: '删除书签',
+            danger: true,
+            action: async () => {
+              if (confirm(`确定要删除"${bookmark.name}"吗？`)) {
+                widget.data.bookmarks.splice(idx, 1);
+                await saveState();
+                render();
+              }
+            }
+          }
+        ], '📚 书签');
+      }
+    }
+  });
+
+  // 全局点击关闭右键菜单
+  document.addEventListener('click', () => {
+    closeContextMenu();
+  });
+
+  // 搜索表单
+  document.getElementById('searchForm').addEventListener('submit', (e) => {
+    const input = document.getElementById('searchInput');
+    if (!input.value.trim()) {
+      e.preventDefault();
+    }
+  });
+
+  // 初始化
+  loadState().then(() => {
+    render();
+  });
+})();

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>iblank</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- 搜索区域 -->
+    <div class="search-container">
+      <form id="searchForm" action="https://www.google.com/search" method="get" target="_blank">
+        <input
+          type="text"
+          name="q"
+          id="searchInput"
+          placeholder="搜索..."
+          autocomplete="off"
+        />
+      </form>
+    </div>
+
+    <!-- 栅格容器 -->
+    <div id="gridContainer" class="grid-container">
+      <!-- 动态生成栅格单元格 -->
+    </div>
+
+    <!-- 顶部操作栏 -->
+    <div class="top-actions">
+      <button id="editModeBtn" class="edit-mode-btn" title="编辑模式">
+        <span>编辑</span>
+      </button>
+      <button id="addWidgetBtn" class="add-widget-btn" title="添加组件">
+        <span>+</span>
+      </button>
+      <button id="wallpaperBtn" class="wallpaper-btn" title="设置壁纸">
+        <span>🖼️</span>
+      </button>
+      <input type="file" id="wallpaperInput" accept="image/*" hidden />
+    </div>
+  </div>
+
+  <!-- Modal: 添加组件 -->
+  <div id="widgetModal" class="modal" aria-hidden="true">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <h3>添加组件</h3>
+      <div class="widget-types">
+        <div class="widget-type-card" data-type="webpage">
+          <div class="widget-icon">🔗</div>
+          <div class="widget-label">网页</div>
+        </div>
+        <div class="widget-type-card" data-type="bookmarks">
+          <div class="widget-icon">📚</div>
+          <div class="widget-label">收藏夹</div>
+        </div>
+        <div class="widget-type-card" data-type="clock">
+          <div class="widget-icon">🕐</div>
+          <div class="widget-label">时钟</div>
+        </div>
+        <div class="widget-type-card" data-type="countdown">
+          <div class="widget-icon">⏱️</div>
+          <div class="widget-label">倒计时</div>
+        </div>
+        <div class="widget-type-card" data-type="calendar">
+          <div class="widget-icon">📅</div>
+          <div class="widget-label">日历</div>
+        </div>
+        <div class="widget-type-card" data-type="note">
+          <div class="widget-icon">📝</div>
+          <div class="widget-label">便签</div>
+        </div>
+        <div class="widget-type-card" data-type="weather">
+          <div class="widget-icon">🌤️</div>
+          <div class="widget-label">天气</div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="widgetCancelBtn" class="btn">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: 配置组件 -->
+  <div id="configModal" class="modal" aria-hidden="true">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <h3 id="configTitle">配置组件</h3>
+      <div id="configContent">
+        <!-- 动态配置内容 -->
+      </div>
+      <div class="modal-actions">
+        <button id="configCancelBtn" class="btn">取消</button>
+        <button id="configConfirmBtn" class="btn btn-primary">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/newtab.js"></script>
+</body>
+</html>
