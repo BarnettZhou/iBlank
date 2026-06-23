@@ -944,6 +944,48 @@ body {
   font-weight: 500;
 }
 
+.weather-layout-2x1 {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.weather-current-inline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 6px 8px;
+  background: var(--item-bg);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.weather-inline-city {
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40%;
+}
+
+.weather-inline-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.weather-inline-temp {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.weather-inline-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 .weather-empty,
 .weather-error {
   height: 100%;
