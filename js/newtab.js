@@ -889,13 +889,19 @@
         const dailyTime = el.dataset.dailyTime;
         if (!dailyTime) return;
 
-        const [hours, minutes] = dailyTime.split(':').map(Number);
+        const [dailyHours, dailyMinutes] = dailyTime.split(':').map(Number);
         target = new Date();
-        target.setHours(hours, minutes, 0, 0);
+        target.setHours(dailyHours, dailyMinutes, 0, 0);
 
-        // 如果今天的时间已过，设置为明天
+        // 如果今天的时间已过，显示已过时间
         if (target <= now) {
-          target.setDate(target.getDate() + 1);
+          const elapsed = now - target;
+          const elapsedHours = Math.floor(elapsed / (1000 * 60 * 60));
+          const elapsedMinutes = Math.floor((elapsed % (1000 * 60 * 60)) / (1000 * 60));
+          const elapsedSeconds = Math.floor((elapsed % (1000 * 60)) / 1000);
+          el.textContent = `已过${elapsedHours.toString().padStart(2, '0')}:${elapsedMinutes.toString().padStart(2, '0')}:${elapsedSeconds.toString().padStart(2, '0')}`;
+          el.classList.remove('countdown-expired');
+          return;
         }
       } else {
         // 具体日期倒计时
