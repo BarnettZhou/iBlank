@@ -7,6 +7,12 @@
     widgets: []
   };
 
+  let settings = {
+    linkTarget: '_self',
+    theme: 'dark',
+    wallpaper: null
+  };
+
   let isEditMode = false;
 
   let draggedWidget = null;
@@ -23,12 +29,18 @@
   const appContainer = document.querySelector('.app');
   const editModeBtn = document.getElementById('editModeBtn');
   const addWidgetBtn = document.getElementById('addWidgetBtn');
-  const wallpaperBtn = document.getElementById('wallpaperBtn');
-  const wallpaperInput = document.getElementById('wallpaperInput');
+  const settingsBtn = document.getElementById('settingsBtn');
   const widgetModal = document.getElementById('widgetModal');
   const configModal = document.getElementById('configModal');
   const configContent = document.getElementById('configContent');
   const configTitle = document.getElementById('configTitle');
+  const settingsModal = document.getElementById('settingsModal');
+  const settingsWallpaperInput = document.getElementById('settingsWallpaperInput');
+  const wallpaperPreview = document.getElementById('wallpaperPreview');
+  const removeWallpaperBtn = document.getElementById('removeWallpaperBtn');
+  const settingsLinkTarget = document.getElementById('settingsLinkTarget');
+  const settingsTheme = document.getElementById('settingsTheme');
+  const settingsCloseBtn = document.getElementById('settingsCloseBtn');
 
   // 工具函数
   const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -90,6 +102,70 @@
       await chrome.storage.sync.set({ iblank_widgets: state });
     } else {
       localStorage.setItem('iblank_widgets', JSON.stringify(state));
+    }
+  };
+
+  // 设置管理
+  const loadSettings = async () => {
+    let raw = null;
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      const res = await chrome.storage.local.get('iblank_settings');
+      raw = res.iblank_settings;
+    } else {
+      raw = localStorage.getItem('iblank_settings');
+    }
+    if (raw) {
+      try {
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        settings = { ...settings, ...parsed };
+      } catch (e) {
+        console.error('Failed to load settings', e);
+      }
+    }
+  };
+
+  const saveSettings = async () => {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      await chrome.storage.local.set({ iblank_settings: settings });
+    } else {
+      localStorage.setItem('iblank_settings', JSON.stringify(settings));
+    }
+  };
+
+  const applyTheme = () => {
+    document.documentElement.setAttribute('data-theme', settings.theme);
+  };
+
+  const applyWallpaper = (dataUrl) => {
+    if (dataUrl) {
+      document.body.style.backgroundImage = `url(${dataUrl})`;
+      document.body.style.backgroundSize = 'cover';
+      document.body.style.backgroundPosition = 'center';
+      document.body.style.backgroundRepeat = 'no-repeat';
+      document.body.style.backgroundAttachment = 'fixed';
+    } else {
+      document.body.style.backgroundImage = '';
+      document.body.style.backgroundSize = '';
+      document.body.style.backgroundPosition = '';
+      document.body.style.backgroundRepeat = '';
+      document.body.style.backgroundAttachment = '';
+    }
+  };
+
+  const updateSettingsUI = () => {
+    settingsLinkTarget.value = settings.linkTarget;
+    settingsTheme.value = settings.theme;
+  };
+
+  const updateWallpaperPreview = (dataUrl) => {
+    if (dataUrl) {
+      wallpaperPreview.style.backgroundImage = `url(${dataUrl})`;
+      wallpaperPreview.classList.add('has-image');
+      removeWallpaperBtn.style.display = 'block';
+    } else {
+      wallpaperPreview.style.backgroundImage = '';
+      wallpaperPreview.classList.remove('has-image');
+      removeWallpaperBtn.style.display = 'none';
     }
   };
 
@@ -709,7 +785,7 @@
 
     return `
       <div class="webpage-widget">
-        <a href="${escapeHtml(url)}" class="webpage-link" target="_blank">
+        <a href="${escapeHtml(url)}" class="webpage-link" target="${escapeHtml(settings.linkTarget)}">
           ${icon ? 
             `<img class="webpage-icon" src="${escapeHtml(icon)}" alt="" />` :
             `<div class="webpage-icon fallback">${escapeHtml(name[0] || '?')}</div>`
@@ -1121,75 +1197,50 @@
     openModal(widgetModal);
   });
 
-  // 壁纸设置
-  const applyWallpaper = (dataUrl) => {
-    document.body.style.backgroundImage = `url(${dataUrl})`;
-    document.body.style.backgroundSize = 'cover';
-    document.body.style.backgroundPosition = 'center';
-    document.body.style.backgroundRepeat = 'no-repeat';
-    document.body.style.backgroundAttachment = 'fixed';
-  };
-
-  const removeWallpaper = async () => {
-    document.body.style.backgroundImage = '';
-    document.body.style.backgroundSize = '';
-    document.body.style.backgroundPosition = '';
-    document.body.style.backgroundRepeat = '';
-    document.body.style.backgroundAttachment = '';
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      await chrome.storage.local.remove('iblank_wallpaper');
-    } else {
-      localStorage.removeItem('iblank_wallpaper');
-    }
-  };
-
-  const saveWallpaper = async (dataUrl) => {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      await chrome.storage.local.set({ iblank_wallpaper: dataUrl });
-    } else {
-      localStorage.setItem('iblank_wallpaper', dataUrl);
-    }
-  };
-
-  const loadWallpaper = async () => {
-    let dataUrl = null;
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      const res = await chrome.storage.local.get('iblank_wallpaper');
-      dataUrl = res.iblank_wallpaper;
-    } else {
-      dataUrl = localStorage.getItem('iblank_wallpaper');
-    }
-    if (dataUrl) applyWallpaper(dataUrl);
-  };
-
-  wallpaperBtn.addEventListener('click', () => {
-    wallpaperInput.click();
+  // 设置
+  settingsBtn.addEventListener('click', () => {
+    updateSettingsUI();
+    updateWallpaperPreview(settings.wallpaper);
+    openModal(settingsModal);
   });
 
-  wallpaperInput.addEventListener('change', (e) => {
+  settingsWallpaperInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = async (event) => {
       const dataUrl = event.target.result;
-      await saveWallpaper(dataUrl);
+      settings.wallpaper = dataUrl;
+      await saveSettings();
       applyWallpaper(dataUrl);
+      updateWallpaperPreview(dataUrl);
     };
     reader.readAsDataURL(file);
-    wallpaperInput.value = '';
+    settingsWallpaperInput.value = '';
   });
 
-  // 右键壁纸按钮可清除壁纸
-  wallpaperBtn.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    showContextMenu(e.clientX, e.clientY, [
-      {
-        icon: '🧹',
-        label: '清除壁纸',
-        action: () => removeWallpaper()
-      }
-    ], '🖼️ 壁纸');
+  removeWallpaperBtn.addEventListener('click', async () => {
+    settings.wallpaper = null;
+    await saveSettings();
+    applyWallpaper(null);
+    updateWallpaperPreview(null);
+  });
+
+  settingsLinkTarget.addEventListener('change', async (e) => {
+    settings.linkTarget = e.target.value;
+    await saveSettings();
+    render();
+  });
+
+  settingsTheme.addEventListener('change', async (e) => {
+    settings.theme = e.target.value;
+    await saveSettings();
+    applyTheme();
+  });
+
+  settingsCloseBtn.addEventListener('click', () => {
+    closeModal(settingsModal);
   });
 
   // 组件类型选择
@@ -1224,7 +1275,12 @@
     if (e.target.closest('.bookmark-item') && !e.target.closest('.bookmark-action')) {
       const item = e.target.closest('.bookmark-item');
       const url = item.dataset.url;
-      if (url) window.open(url, '_blank');
+      if (!url) return;
+      if (settings.linkTarget === '_blank') {
+        window.open(url, '_blank');
+      } else {
+        window.location.href = url;
+      }
       return;
     }
 
@@ -1339,8 +1395,9 @@
   }, 150));
 
   // 初始化
-  loadState().then(() => {
+  Promise.all([loadState(), loadSettings()]).then(() => {
     render();
-    loadWallpaper();
+    applyTheme();
+    applyWallpaper(settings.wallpaper);
   });
 })();

@@ -10,6 +10,27 @@
   --radius: 12px;
   --gap: 16px;
   --grid-cols: 6;
+  --widget-bg: rgba(30, 41, 59, 0.65);
+  --widget-border: rgba(255, 255, 255, 0.12);
+  --widget-bg-hover: rgba(30, 41, 59, 0.75);
+  --widget-border-hover: rgba(255, 255, 255, 0.2);
+  --item-bg: rgba(255, 255, 255, 0.04);
+  --item-bg-hover: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] {
+  --bg: #f1f5f9;
+  --surface: rgba(255, 255, 255, 0.8);
+  --surface-hover: rgba(226, 232, 240, 0.9);
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --border: #cbd5e1;
+  --widget-bg: rgba(255, 255, 255, 0.65);
+  --widget-border: rgba(0, 0, 0, 0.08);
+  --widget-bg-hover: rgba(255, 255, 255, 0.8);
+  --widget-border-hover: rgba(0, 0, 0, 0.12);
+  --item-bg: rgba(0, 0, 0, 0.04);
+  --item-bg-hover: rgba(0, 0, 0, 0.08);
 }
 
 * {
@@ -49,9 +70,9 @@ body {
 .search-container input {
   width: 100%;
   padding: 16px 28px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--widget-border);
   border-radius: 9999px;
-  background: rgba(30, 41, 59, 0.65);
+  background: var(--widget-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   color: var(--text);
@@ -67,8 +88,8 @@ body {
 }
 
 .search-container input:focus {
-  background: rgba(30, 41, 59, 0.75);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--widget-bg-hover);
+  border-color: var(--widget-border-hover);
   box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12), 0 6px 24px rgba(0, 0, 0, 0.3);
 }
 
@@ -116,10 +137,10 @@ body {
 /* 组件卡片 */
 .widget {
   position: absolute;
-  background: rgba(30, 41, 59, 0.65);
+  background: var(--widget-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--widget-border);
   border-radius: var(--radius);
   padding: 16px;
   cursor: default;
@@ -139,13 +160,13 @@ body {
 }
 
 .widget:hover {
-  background: rgba(30, 41, 59, 0.75);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--widget-bg-hover);
+  border-color: var(--widget-border-hover);
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
 }
 
 .app.edit-mode .widget:hover {
-  border-color: rgba(59, 130, 246, 0.6);
+  border-color: var(--primary);
 }
 
 .widget.dragging {
@@ -264,12 +285,28 @@ body {
 /* 悬浮操作栏 */
 .floating-actions {
   position: fixed;
-  bottom: 40px;
-  right: 40px;
+  bottom: 20px;
+  right: 32px;
+  padding: 16px;
+  margin: -16px;
+  z-index: 100;
+}
+
+.floating-actions-inner {
   display: flex;
   align-items: center;
   gap: 10px;
-  z-index: 100;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
+}
+
+.floating-actions:hover .floating-actions-inner,
+.floating-actions:focus-within .floating-actions-inner {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
 }
 
 /* 编辑模式切换按钮 */
@@ -327,8 +364,8 @@ body {
   line-height: 0;
 }
 
-/* 设置壁纸按钮 */
-.wallpaper-btn {
+/* 设置按钮 */
+.settings-btn {
   width: 28px;
   height: 28px;
   border-radius: 50%;
@@ -343,13 +380,28 @@ body {
   transition: transform 0.2s ease, background 0.2s ease;
 }
 
-.wallpaper-btn:hover {
+.settings-btn:hover {
   transform: scale(1.1);
   background: var(--surface-hover);
 }
 
-.wallpaper-btn span {
+.settings-btn span {
   line-height: 0;
+}
+
+/* 壁纸预览 */
+.wallpaper-preview {
+  width: 100%;
+  height: 120px;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+  border: 1px solid var(--border);
+  display: none;
+}
+
+.wallpaper-preview.has-image {
+  display: block;
 }
 
 /* Modal */
@@ -593,7 +645,7 @@ body {
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--item-bg);
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.15s ease;
@@ -614,7 +666,7 @@ body {
 }
 
 .bookmark-item:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--item-bg-hover);
 }
 
 .bookmark-icon {

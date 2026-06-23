@@ -28,16 +28,17 @@
 
     <!-- 悬浮操作栏 -->
     <div class="floating-actions">
-      <button id="editModeBtn" class="edit-mode-btn" title="编辑模式">
-        <span>编辑</span>
-      </button>
-      <button id="addWidgetBtn" class="add-widget-btn" title="添加组件">
-        <span>+</span>
-      </button>
-      <button id="wallpaperBtn" class="wallpaper-btn" title="设置壁纸">
-        <span>🖼️</span>
-      </button>
-      <input type="file" id="wallpaperInput" accept="image/*" hidden />
+      <div class="floating-actions-inner">
+        <button id="addWidgetBtn" class="add-widget-btn" title="添加组件">
+          <span>+</span>
+        </button>
+        <button id="settingsBtn" class="settings-btn" title="设置">
+          <span>⚙️</span>
+        </button>
+        <button id="editModeBtn" class="edit-mode-btn" title="编辑模式">
+          <span>编辑</span>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -93,6 +94,41 @@
       <div class="modal-actions">
         <button id="configCancelBtn" class="btn">取消</button>
         <button id="configConfirmBtn" class="btn btn-primary">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: 设置 -->
+  <div id="settingsModal" class="modal" aria-hidden="true">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <h3>设置</h3>
+      <div class="config-form" id="settingsContent">
+        <label>
+          <span>壁纸</span>
+          <input type="file" id="settingsWallpaperInput" accept="image/*" />
+        </label>
+        <div class="wallpaper-preview" id="wallpaperPreview"></div>
+        <button type="button" id="removeWallpaperBtn" class="btn">清除壁纸</button>
+
+        <label>
+          <span>链接打开方式</span>
+          <select id="settingsLinkTarget">
+            <option value="_self">当前页面</option>
+            <option value="_blank">新标签页</option>
+          </select>
+        </label>
+
+        <label>
+          <span>主题</span>
+          <select id="settingsTheme">
+            <option value="dark">暗色</option>
+            <option value="light">亮色</option>
+          </select>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button id="settingsCloseBtn" class="btn btn-primary">完成</button>
       </div>
     </div>
   </div>
