@@ -455,6 +455,11 @@
       el.classList.add('square');
     }
 
+    // 笔记组件单独标记，用于控制滚动条
+    if (widget.type === 'note') {
+      el.classList.add('widget--note');
+    }
+
     // 设置位置和大小
     const { cellWidth, cellHeight, gap } = getCellMetrics();
 
@@ -999,7 +1004,7 @@
 
   // 便签组件
   const renderNoteWidget = (widget) => {
-    return `<textarea class="note-textarea" placeholder="在这里输入笔记...">${escapeHtml(widget.data.text || '')}</textarea>`;
+    return `<div class="note-widget"><textarea class="note-textarea" placeholder="在这里输入笔记...">${escapeHtml(widget.data.text || '')}</textarea></div>`;
   };
 
   // 收藏夹组件

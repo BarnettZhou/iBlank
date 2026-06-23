@@ -604,6 +604,10 @@ body {
 }
 
 /* 便签组件 */
+.widget--note .widget-content {
+  overflow-y: hidden;
+}
+
 .note-widget {
   height: 100%;
 }
@@ -618,6 +622,7 @@ body {
   resize: none;
   outline: none;
   line-height: 1.6;
+  overflow-y: auto;
 }
 
 /* 收藏夹组件 */
