@@ -149,6 +149,7 @@ body {
   display: flex;
   flex-direction: column;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  container-type: inline-size;
 }
 
 .app.edit-mode .widget {
@@ -564,16 +565,18 @@ body {
 }
 
 .clock-time {
-  font-size: 48px;
+  font-size: clamp(18px, 16cqi, 48px);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -2px;
+  letter-spacing: -0.05em;
+  white-space: nowrap;
 }
 
 .clock-date {
-  font-size: 16px;
+  font-size: clamp(10px, 5cqi, 16px);
   color: var(--text-muted);
   margin-top: 8px;
+  white-space: nowrap;
 }
 
 /* 倒计时组件 */
