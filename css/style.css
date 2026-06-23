@@ -875,9 +875,21 @@ body {
   font-weight: 600;
 }
 
+.calendar-day.weekend {
+  color: #f87171;
+}
+
+.calendar-day.weekend:not(.today):hover {
+  background: rgba(248, 113, 113, 0.12);
+}
+
 .calendar-day.other-month {
   color: var(--text-muted);
   opacity: 0.4;
+}
+
+.calendar-day.other-month.weekend {
+  color: #f87171;
 }
 
 /* 天气组件 */

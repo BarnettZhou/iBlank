@@ -1128,23 +1128,38 @@
           <div class="calendar-day header">六</div>
     `;
 
+    // 辅助：根据单元格列索引判断周末（0=周日，6=周六）
+    const getDayClasses = (cellIdx, extraClasses = []) => {
+      const dayOfWeek = cellIdx % 7;
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        extraClasses.push('weekend');
+      }
+      return `<div class="calendar-day ${extraClasses.join(' ')}">`;
+    };
+
+    let cellIndex = 0;
+
     // 填充空白
     for (let i = 0; i < startDay; i++) {
       const prevMonthDay = new Date(year, month, 0 - (startDay - i - 1)).getDate();
-      calendarHtml += `<div class="calendar-day other-month">${prevMonthDay}</div>`;
+      calendarHtml += `${getDayClasses(cellIndex, ['other-month'])}${prevMonthDay}</div>`;
+      cellIndex++;
     }
 
     // 填充日期
     const today = new Date();
     for (let day = 1; day <= daysInMonth; day++) {
       const isToday = year === today.getFullYear() && month === today.getMonth() && day === today.getDate();
-      calendarHtml += `<div class="calendar-day ${isToday ? 'today' : ''}">${day}</div>`;
+      const classes = isToday ? ['today'] : [];
+      calendarHtml += `${getDayClasses(cellIndex, classes)}${day}</div>`;
+      cellIndex++;
     }
 
     // 填充下月开头
     const remainingCells = 42 - (startDay + daysInMonth);
     for (let i = 1; i <= remainingCells; i++) {
-      calendarHtml += `<div class="calendar-day other-month">${i}</div>`;
+      calendarHtml += `${getDayClasses(cellIndex, ['other-month'])}${i}</div>`;
+      cellIndex++;
     }
 
     calendarHtml += '</div></div>';
