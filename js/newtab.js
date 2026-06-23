@@ -550,6 +550,28 @@
             render();
           }
         });
+
+        items.push({ divider: true });
+
+        items.push({
+          icon: '🔤',
+          label: '按名称升序',
+          action: async () => {
+            widget.data.bookmarks.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+            await saveState();
+            render();
+          }
+        });
+
+        items.push({
+          icon: '🔤',
+          label: '按名称降序',
+          action: async () => {
+            widget.data.bookmarks.sort((a, b) => b.name.localeCompare(a.name, 'zh-CN'));
+            await saveState();
+            render();
+          }
+        });
       }
 
       if (items.length > 0) {
