@@ -1092,7 +1092,9 @@
     return `
       <div class="countdown-widget">
         <div class="countdown-label">${escapeHtml(widget.data.label || '倒计时')}</div>
-        <div class="countdown-time" data-countdown="${widget.id}" data-target="${targetDate || ''}" data-daily="${isDaily ? 'true' : 'false'}" data-daily-time="${widget.data.dailyTime || ''}">--</div>
+        <div class="countdown-time" data-countdown="${widget.id}" data-target="${targetDate || ''}" data-daily="${isDaily ? 'true' : 'false'}" data-daily-time="${widget.data.dailyTime || ''}">
+          <span class="countdown-prefix"></span><span class="countdown-value">--</span>
+        </div>
       </div>
     `;
   };
@@ -1112,14 +1114,19 @@
         target = new Date();
         target.setHours(dailyHours, dailyMinutes, 0, 0);
 
+        const prefixEl = el.querySelector('.countdown-prefix');
+        const valueEl = el.querySelector('.countdown-value');
+
         // 如果今天的时间已过，显示已过时间
         if (target <= now) {
           const elapsed = now - target;
           const elapsedHours = Math.floor(elapsed / (1000 * 60 * 60));
           const elapsedMinutes = Math.floor((elapsed % (1000 * 60 * 60)) / (1000 * 60));
           const elapsedSeconds = Math.floor((elapsed % (1000 * 60)) / 1000);
-          el.textContent = `已过${elapsedHours.toString().padStart(2, '0')}:${elapsedMinutes.toString().padStart(2, '0')}:${elapsedSeconds.toString().padStart(2, '0')}`;
+          if (prefixEl) prefixEl.textContent = '已过';
+          if (valueEl) valueEl.textContent = `${elapsedHours.toString().padStart(2, '0')}:${elapsedMinutes.toString().padStart(2, '0')}:${elapsedSeconds.toString().padStart(2, '0')}`;
           el.classList.remove('countdown-expired');
+          el.classList.add('countdown-elapsed');
           return;
         }
       } else {
@@ -1127,28 +1134,35 @@
         target = new Date(el.dataset.target);
       }
 
+      const prefixEl = el.querySelector('.countdown-prefix');
+      const valueEl = el.querySelector('.countdown-value');
+
       const diff = target - now;
 
       if (diff <= 0 && !isDaily) {
-        el.textContent = '已结束';
+        if (prefixEl) prefixEl.textContent = '';
+        if (valueEl) valueEl.textContent = '已结束';
         el.classList.add('countdown-expired');
+        el.classList.remove('countdown-elapsed');
         return;
       }
 
       el.classList.remove('countdown-expired');
+      el.classList.remove('countdown-elapsed');
 
       const days = Math.floor(diff / (1000 * 60 * 60 * 24));
       const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
+      if (prefixEl) prefixEl.textContent = '';
       if (isDaily && days === 0) {
         // 每日倒计时只显示时分秒
-        el.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        if (valueEl) valueEl.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
       } else if (days === 0) {
-        el.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        if (valueEl) valueEl.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
       } else {
-        el.textContent = `${days}天 ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        if (valueEl) valueEl.textContent = `${days}天 ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
       }
     });
   };

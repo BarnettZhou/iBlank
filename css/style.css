@@ -596,14 +596,32 @@ body {
 }
 
 .countdown-time {
-  font-size: 36px;
+  font-size: clamp(14px, 7cqi, 32px);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+}
+
+.countdown-prefix {
+  font-size: 0.5em;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.countdown-value {
+  line-height: 1;
+}
+
+.countdown-time.countdown-elapsed .countdown-value {
+  font-size: 0.75em;
 }
 
 .countdown-expired {
   color: var(--text-muted);
-  font-size: 18px;
+  font-size: 0.6em;
 }
 
 /* 便签组件 */
