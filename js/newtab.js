@@ -726,12 +726,24 @@
           action: () => openAddBookmarkModal(widget)
         });
 
-        const layout = widget.data.layout || 'list';
+        // 兼容旧数据
+        let layout = widget.data.layout || 'list';
+        if (layout === 'grid') layout = 'grid-2';
+
+        const layoutCycle = { 'list': 'grid-2', 'grid-2': 'grid-3', 'grid-3': 'list' };
+        const nextLayout = layoutCycle[layout];
+        const layoutLabels = {
+          'list': '列表布局',
+          'grid-2': '图标布局(2×2)',
+          'grid-3': '图标布局(3×3)'
+        };
+        const layoutIcons = { 'list': '📋', 'grid-2': '🔲', 'grid-3': '🔳' };
+
         items.push({
-          icon: layout === 'list' ? '🔲' : '📋',
-          label: layout === 'list' ? '切换到图标布局' : '切换到列表布局',
+          icon: layoutIcons[nextLayout],
+          label: `切换为${layoutLabels[nextLayout]}`,
           action: async () => {
-            widget.data.layout = layout === 'list' ? 'grid' : 'list';
+            widget.data.layout = nextLayout;
             await saveState();
             render();
           }
@@ -1311,7 +1323,9 @@
   // 收藏夹组件
   const renderBookmarksWidget = (widget) => {
     const bookmarks = widget.data.bookmarks || [];
-    const layout = widget.data.layout || 'list';
+    // 兼容旧数据：原来的 'grid' 视为 'grid-2'
+    let layout = widget.data.layout || 'list';
+    if (layout === 'grid') layout = 'grid-2';
 
     if (bookmarks.length === 0) {
       return `
@@ -1322,9 +1336,11 @@
       `;
     }
 
+    const layoutClass = layout === 'list' ? 'list-layout' : `grid-layout ${layout}`;
+
     return `
       <div class="bookmarks-widget">
-        <div class="bookmarks-list ${layout === 'grid' ? 'grid-layout' : ''}">
+        <div class="bookmarks-list ${layoutClass}">
           ${bookmarks.map((bookmark, idx) => `
             <div class="bookmark-item" data-url="${escapeHtml(bookmark.url)}" data-idx="${idx}">
               ${bookmark.icon ?
