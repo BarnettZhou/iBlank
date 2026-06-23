@@ -516,6 +516,9 @@
 
     // 右键菜单
     el.addEventListener('contextmenu', (e) => {
+      // 如果点击的是书签条目，交给书签专用的右键菜单处理
+      if (e.target.closest('.bookmark-item')) return;
+
       e.preventDefault();
       e.stopPropagation();
 
