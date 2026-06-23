@@ -821,6 +821,138 @@ body {
   text-overflow: ellipsis;
 }
 
+/* 天气组件 */
+.weather-widget {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.weather-current {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 0;
+}
+
+.weather-city {
+  font-size: clamp(10px, 4cqi, 14px);
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.weather-icon {
+  font-size: clamp(28px, 14cqi, 56px);
+  line-height: 1;
+  margin: 2px 0;
+}
+
+.weather-temp {
+  font-size: clamp(22px, 11cqi, 44px);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.weather-desc {
+  font-size: clamp(10px, 4cqi, 14px);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.weather-meta {
+  font-size: clamp(9px, 3cqi, 12px);
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.weather-forecast {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.weather-forecast.horizontal {
+  flex-direction: row;
+  gap: 2px;
+}
+
+.weather-forecast-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px;
+  background: var(--item-bg);
+  border-radius: 6px;
+  font-size: clamp(9px, 3cqi, 12px);
+  min-height: 0;
+}
+
+.weather-forecast.horizontal .weather-forecast-item {
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+  gap: 2px;
+  padding: 4px 2px;
+}
+
+.weather-forecast-day {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.weather-forecast-icon {
+  font-size: clamp(10px, 4cqi, 14px);
+}
+
+.weather-forecast-temp {
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.weather-empty,
+.weather-error {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  gap: 8px;
+}
+
+.weather-empty .icon,
+.weather-error .icon {
+  font-size: 28px;
+}
+
+.weather-stale {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f59e0b;
+}
+
 /* 网页组件 */
 .webpage-widget {
   height: 100%;

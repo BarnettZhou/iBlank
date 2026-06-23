@@ -10,7 +10,9 @@
   let settings = {
     linkTarget: '_self',
     theme: 'dark',
-    wallpaper: null
+    wallpaper: null,
+    weatherPlatform: 'amap',
+    weatherKey: ''
   };
 
   let isEditMode = false;
@@ -26,6 +28,7 @@
   let sortableBookmarks = [];
   let sortableWidget = null;
   let draggedSortIdx = null;
+  let weatherData = null;
 
   // DOM 引用
   const gridContainer = document.getElementById('gridContainer');
@@ -43,6 +46,8 @@
   const removeWallpaperBtn = document.getElementById('removeWallpaperBtn');
   const settingsLinkTarget = document.getElementById('settingsLinkTarget');
   const settingsTheme = document.getElementById('settingsTheme');
+  const settingsWeatherPlatform = document.getElementById('settingsWeatherPlatform');
+  const settingsWeatherKey = document.getElementById('settingsWeatherKey');
   const settingsCloseBtn = document.getElementById('settingsCloseBtn');
   const bookmarkSortModal = document.getElementById('bookmarkSortModal');
   const bookmarkSortList = document.getElementById('bookmarkSortList');
@@ -162,6 +167,8 @@
   const updateSettingsUI = () => {
     settingsLinkTarget.value = settings.linkTarget;
     settingsTheme.value = settings.theme;
+    settingsWeatherPlatform.value = settings.weatherPlatform || 'amap';
+    settingsWeatherKey.value = settings.weatherKey || '';
   };
 
   const updateWallpaperPreview = (dataUrl) => {
@@ -174,6 +181,170 @@
       wallpaperPreview.classList.remove('has-image');
       removeWallpaperBtn.style.display = 'none';
     }
+  };
+
+  // 天气相关
+  const getWeatherIcon = (weather) => {
+    const map = {
+      '晴': '☀️',
+      '多云': '⛅',
+      '阴': '☁️',
+      '阵雨': '🌦️',
+      '雷阵雨': '⛈️',
+      '小雨': '🌧️',
+      '中雨': '🌧️',
+      '大雨': '🌧️',
+      '暴雨': '🌧️',
+      '大暴雨': '🌧️',
+      '特大暴雨': '🌧️',
+      '雨夹雪': '🌨️',
+      '小雪': '❄️',
+      '中雪': '❄️',
+      '大雪': '❄️',
+      '暴雪': '❄️',
+      '雾': '🌫️',
+      '霾': '🌫️',
+      '沙尘暴': '🌫️',
+      '浮尘': '🌫️',
+      '扬沙': '🌫️',
+      '强沙尘暴': '🌫️'
+    };
+    for (const key of Object.keys(map)) {
+      if (weather.includes(key)) return map[key];
+    }
+    return '🌤️';
+  };
+
+  const formatWeatherDate = (dateStr) => {
+    const date = new Date(dateStr.replace(/-/g, '/'));
+    const today = new Date();
+    const isToday = date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
+    if (isToday) return '今天';
+    const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+    return weekdays[date.getDay()];
+  };
+
+  const fetchAmapLocation = async (key) => {
+    const res = await fetch(`https://restapi.amap.com/v3/ip?key=${encodeURIComponent(key)}`);
+    const data = await res.json();
+    if (data.status !== '1' || !data.adcode) {
+      throw new Error(data.info || '定位失败');
+    }
+    return { adcode: data.adcode, city: data.city };
+  };
+
+  const fetchAmapWeather = async (key, adcode, extensions = 'base') => {
+    const res = await fetch(`https://restapi.amap.com/v3/weather/weatherInfo?key=${encodeURIComponent(key)}&city=${adcode}&extensions=${extensions}`);
+    const data = await res.json();
+    if (data.status !== '1' || !data.forecasts || data.forecasts.length === 0) {
+      throw new Error(data.info || '天气数据获取失败');
+    }
+    return data.forecasts[0];
+  };
+
+  const loadWeather = async () => {
+    let raw = null;
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      const res = await chrome.storage.local.get('iblank_weather');
+      raw = res.iblank_weather;
+    } else {
+      raw = localStorage.getItem('iblank_weather');
+    }
+    if (!raw) return null;
+    try {
+      return typeof raw === 'string' ? JSON.parse(raw) : raw;
+    } catch (e) {
+      console.error('Failed to load weather', e);
+      return null;
+    }
+  };
+
+  const saveWeather = async (weatherData) => {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      await chrome.storage.local.set({ iblank_weather: weatherData });
+    } else {
+      localStorage.setItem('iblank_weather', JSON.stringify(weatherData));
+    }
+  };
+
+  const fetchAndSaveWeather = async (key) => {
+    const useKey = key || settings.weatherKey;
+    if (!useKey) return null;
+
+    try {
+      const location = await fetchAmapLocation(useKey);
+      const [currentForecast, allForecast] = await Promise.all([
+        fetchAmapWeather(useKey, location.adcode, 'base'),
+        fetchAmapWeather(useKey, location.adcode, 'all')
+      ]);
+
+      const current = currentForecast.casts && currentForecast.casts[0];
+      const forecast = (allForecast.casts || []).slice(0, 5);
+
+      const newWeatherData = {
+        lastUpdateTime: Date.now(),
+        city: location.city,
+        adcode: location.adcode,
+        current: current ? {
+          weather: current.dayweather,
+          temp: current.daytemp,
+          humidity: current.daypower,
+          windDirection: current.daywind,
+          windPower: current.daypower,
+          reportTime: currentForecast.reportTime
+        } : null,
+        forecast: forecast.map(day => ({
+          date: day.date,
+          dayWeather: day.dayweather,
+          nightWeather: day.nightweather,
+          dayTemp: day.daytemp,
+          nightTemp: day.nighttemp
+        }))
+      };
+
+      await saveWeather(newWeatherData);
+      weatherData = newWeatherData;
+      return weatherData;
+    } catch (e) {
+      console.error('Weather fetch failed', e);
+      return null;
+    }
+  };
+
+  const getNextWeatherBoundary = (now = Date.now()) => {
+    const boundary = 20 * 60 * 1000;
+    return Math.ceil(now / boundary) * boundary;
+  };
+
+  const checkAndUpdateWeather = async (expectedBoundary) => {
+    const weather = await loadWeather();
+    if (weather && weather.lastUpdateTime >= expectedBoundary) return;
+    await fetchAndSaveWeather();
+    render();
+  };
+
+  const scheduleWeatherUpdates = () => {
+    if (!settings.weatherKey) return;
+
+    const now = Date.now();
+    const boundary = 20 * 60 * 1000;
+    const currentBoundary = Math.floor(now / boundary) * boundary;
+
+    // 如果当前边界尚未更新，立即尝试一次（首次加载或数据过期）
+    checkAndUpdateWeather(currentBoundary);
+
+    // 调度到下一个 20 分钟边界，加随机抖动避免多窗口同时请求
+    const nextBoundary = getNextWeatherBoundary(now);
+    const delay = Math.max(0, nextBoundary - now + Math.random() * 5000);
+
+    setTimeout(() => {
+      checkAndUpdateWeather(nextBoundary);
+      // 之后每 20 分钟检查一次
+      setInterval(() => {
+        const boundary = getNextWeatherBoundary(Date.now());
+        checkAndUpdateWeather(boundary);
+      }, 20 * 60 * 1000);
+    }, delay);
   };
 
   // 寻找空闲位置
@@ -363,7 +534,7 @@
       defaultWidth: 2,
       defaultHeight: 1,
       render: (widget) => renderWeatherWidget(widget),
-      config: (widget, onSave) => renderWeatherConfig(widget, onSave)
+      config: null
     }
   };
 
@@ -699,6 +870,18 @@
     document.addEventListener('mouseup', handleResizeEnd);
   };
 
+  const snapWeatherSize = (w, h) => {
+    // 天气组件只允许 1x1、2x1、2x2
+    let width = Math.max(1, Math.min(2, w));
+    let height = Math.max(1, Math.min(2, h));
+    if (width === 1 && height === 2) {
+      // 1x2 非法，按高度方向判断更靠近 1x1 还是 2x2
+      height = h >= 1.5 ? 2 : 1;
+      width = height === 2 ? 2 : 1;
+    }
+    return { width, height };
+  };
+
   const handleResizeMove = (e) => {
     if (!resizingWidget) return;
 
@@ -708,8 +891,14 @@
     const deltaX = e.clientX - resizeStartPos.x;
     const deltaY = e.clientY - resizeStartPos.y;
 
-    const newWidth = Math.max(MIN_WIDGET_WIDTH, Math.min(GRID_COLS - widget.col, resizeStartPos.w + Math.round(deltaX / (cellWidth + gap))));
-    const newHeight = Math.max(MIN_WIDGET_HEIGHT, resizeStartPos.h + Math.round(deltaY / (cellHeight + gap)));
+    let newWidth = Math.max(MIN_WIDGET_WIDTH, Math.min(GRID_COLS - widget.col, resizeStartPos.w + Math.round(deltaX / (cellWidth + gap))));
+    let newHeight = Math.max(MIN_WIDGET_HEIGHT, resizeStartPos.h + Math.round(deltaY / (cellHeight + gap)));
+
+    if (widget.type === 'weather') {
+      const snapped = snapWeatherSize(newWidth, newHeight);
+      newWidth = snapped.width;
+      newHeight = snapped.height;
+    }
 
     // 移除过渡动画以实现实时跟随
     el.style.transition = 'none';
@@ -734,8 +923,14 @@
     const deltaX = e.clientX - resizeStartPos.x;
     const deltaY = e.clientY - resizeStartPos.y;
 
-    const newWidth = Math.max(MIN_WIDGET_WIDTH, Math.min(GRID_COLS - widget.col, resizeStartPos.w + Math.round(deltaX / (cellWidth + gap))));
-    const newHeight = Math.max(MIN_WIDGET_HEIGHT, resizeStartPos.h + Math.round(deltaY / (cellHeight + gap)));
+    let newWidth = Math.max(MIN_WIDGET_WIDTH, Math.min(GRID_COLS - widget.col, resizeStartPos.w + Math.round(deltaX / (cellWidth + gap))));
+    let newHeight = Math.max(MIN_WIDGET_HEIGHT, resizeStartPos.h + Math.round(deltaY / (cellHeight + gap)));
+
+    if (widget.type === 'weather') {
+      const snapped = snapWeatherSize(newWidth, newHeight);
+      newWidth = snapped.width;
+      newHeight = snapped.height;
+    }
 
     // 恢复过渡动画
     el.style.transition = '';
@@ -1024,6 +1219,57 @@
     };
   };
 
+  // 天气组件
+  const renderWeatherWidget = (widget) => {
+    const weather = weatherData;
+    const hasKey = settings.weatherKey;
+
+    if (!hasKey) {
+      return `<div class="weather-empty"><span class="icon">🌤️</span><div>请在设置中配置高德 Key</div></div>`;
+    }
+
+    if (!weather || !weather.current) {
+      return `<div class="weather-empty"><span class="icon">🌤️</span><div>天气数据加载中…</div></div>`;
+    }
+
+    const { width, height } = widget;
+    const showCurrent = width === 1 || height === 2;
+    const showForecast = width === 2;
+
+    const currentHtml = `
+      <div class="weather-current">
+        <div class="weather-city">${escapeHtml(weather.city || '本地')}</div>
+        <div class="weather-icon">${getWeatherIcon(weather.current.weather)}</div>
+        <div class="weather-temp">${weather.current.temp}°</div>
+        <div class="weather-desc">${escapeHtml(weather.current.weather)}</div>
+        ${width === 2 && height === 2 ? `<div class="weather-meta">湿度 ${weather.current.humidity || '-'} · ${weather.current.windDirection || ''}风 ${weather.current.windPower || ''}</div>` : ''}
+      </div>
+    `;
+
+    const forecastHtml = `
+      <div class="weather-forecast ${width === 2 && height === 1 ? 'horizontal' : ''}">
+        ${weather.forecast.map(day => `
+          <div class="weather-forecast-item">
+            <span class="weather-forecast-day">${formatWeatherDate(day.date)}</span>
+            <span class="weather-forecast-icon">${getWeatherIcon(day.dayWeather)}</span>
+            <span class="weather-forecast-temp">${day.nightTemp}°/${day.dayTemp}°</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    if (width === 1 && height === 1) {
+      return `<div class="weather-widget">${currentHtml}</div>`;
+    }
+
+    if (width === 2 && height === 1) {
+      return `<div class="weather-widget">${forecastHtml}</div>`;
+    }
+
+    // 2x2
+    return `<div class="weather-widget">${currentHtml}${forecastHtml}</div>`;
+  };
+
   // 便签组件
   const renderNoteWidget = (widget) => {
     return `<div class="note-widget"><textarea class="note-textarea" placeholder="在这里输入笔记...">${escapeHtml(widget.data.text || '')}</textarea></div>`;
@@ -1222,37 +1468,6 @@
     return calendarHtml;
   };
 
-  // 天气组件
-  const renderWeatherWidget = (widget) => {
-    const location = widget.data.location || '未设置';
-
-    return `
-      <div class="weather-widget">
-        <div class="empty-state">
-          <div class="empty-icon">🌤️</div>
-          <div class="empty-text">天气组件（演示）<br/>${escapeHtml(location)}</div>
-        </div>
-      </div>
-    `;
-  };
-
-  const renderWeatherConfig = (widget, onSave) => {
-    configContent.innerHTML = `
-      <div class="config-form">
-        <label>
-          <span>城市</span>
-          <input type="text" id="weatherLocation" value="${escapeHtml(widget.data.location || '')}" placeholder="例如：北京" />
-        </label>
-      </div>
-    `;
-
-    document.getElementById('configConfirmBtn').onclick = () => {
-      onSave({
-        location: document.getElementById('weatherLocation').value
-      });
-    };
-  };
-
   // ========== 事件监听 ==========
 
   // 编辑模式切换
@@ -1312,6 +1527,22 @@
     settings.theme = e.target.value;
     await saveSettings();
     applyTheme();
+  });
+
+  settingsWeatherPlatform.addEventListener('change', async (e) => {
+    settings.weatherPlatform = e.target.value;
+    await saveSettings();
+  });
+
+  settingsWeatherKey.addEventListener('change', async (e) => {
+    const newKey = e.target.value.trim();
+    if (newKey === settings.weatherKey) return;
+    settings.weatherKey = newKey;
+    await saveSettings();
+    if (newKey) {
+      await fetchAndSaveWeather(newKey);
+      render();
+    }
   });
 
   settingsCloseBtn.addEventListener('click', () => {
@@ -1514,9 +1745,11 @@
   }, 150));
 
   // 初始化
-  Promise.all([loadState(), loadSettings()]).then(() => {
+  Promise.all([loadState(), loadSettings()]).then(async () => {
+    weatherData = await loadWeather();
     render();
     applyTheme();
     applyWallpaper(settings.wallpaper);
+    scheduleWeatherUpdates();
   });
 })();
