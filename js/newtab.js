@@ -1255,7 +1255,7 @@
     `;
 
     const forecastHtml = `
-      <div class="weather-forecast ${width === 2 && height === 1 ? 'horizontal' : ''}">
+      <div class="weather-forecast ${width === 2 ? 'horizontal' : ''}">
         ${weather.forecast.map(day => `
           <div class="weather-forecast-item">
             <span class="weather-forecast-day">${formatWeatherDate(day.date)}</span>
@@ -1283,7 +1283,7 @@
     }
 
     // 2x2
-    return `<div class="weather-widget">${currentHtml}${forecastHtml}</div>`;
+    return `<div class="weather-widget weather-layout-2x2">${currentHtml}${forecastHtml}</div>`;
   };
 
   // 便签组件

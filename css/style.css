@@ -949,6 +949,21 @@ body {
   gap: 8px;
 }
 
+.weather-layout-2x2 {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.weather-layout-2x2 .weather-current {
+  flex: 1;
+  justify-content: center;
+}
+
+.weather-layout-2x2 .weather-forecast {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
 .weather-current-inline {
   display: flex;
   align-items: center;
