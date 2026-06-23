@@ -887,7 +887,9 @@ body {
 
 .weather-forecast.horizontal {
   flex-direction: row;
-  gap: 2px;
+  gap: 4px;
+  width: 100%;
+  justify-content: stretch;
 }
 
 .weather-forecast-item {
@@ -903,12 +905,29 @@ body {
 }
 
 .weather-forecast.horizontal .weather-forecast-item {
-  flex: 1;
+  flex: 1 1 0;
   flex-direction: column;
   justify-content: center;
   text-align: center;
   gap: 2px;
-  padding: 4px 2px;
+  padding: 6px 2px;
+  min-width: 0;
+  width: 0;
+  overflow: hidden;
+}
+
+.weather-forecast.horizontal .weather-forecast-day,
+.weather-forecast.horizontal .weather-forecast-temp {
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+.weather-forecast.horizontal .weather-forecast-icon {
+  font-size: 18px;
+  line-height: 1;
 }
 
 .weather-forecast-day {
