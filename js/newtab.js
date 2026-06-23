@@ -236,8 +236,17 @@
   const fetchAmapWeather = async (key, adcode, extensions = 'base') => {
     const res = await fetch(`https://restapi.amap.com/v3/weather/weatherInfo?key=${encodeURIComponent(key)}&city=${adcode}&extensions=${extensions}`);
     const data = await res.json();
-    if (data.status !== '1' || !data.forecasts || data.forecasts.length === 0) {
+    if (data.status !== '1') {
       throw new Error(data.info || '天气数据获取失败');
+    }
+    if (extensions === 'base') {
+      if (!data.lives || data.lives.length === 0) {
+        throw new Error(data.info || '实时天气数据为空');
+      }
+      return data.lives[0];
+    }
+    if (!data.forecasts || data.forecasts.length === 0) {
+      throw new Error(data.info || '预报数据为空');
     }
     return data.forecasts[0];
   };
@@ -273,25 +282,24 @@
 
     try {
       const location = await fetchAmapLocation(useKey);
-      const [currentForecast, allForecast] = await Promise.all([
+      const [live, allForecast] = await Promise.all([
         fetchAmapWeather(useKey, location.adcode, 'base'),
         fetchAmapWeather(useKey, location.adcode, 'all')
       ]);
 
-      const current = currentForecast.casts && currentForecast.casts[0];
       const forecast = (allForecast.casts || []).slice(0, 5);
 
       const newWeatherData = {
         lastUpdateTime: Date.now(),
-        city: location.city,
+        city: location.city || live.city,
         adcode: location.adcode,
-        current: current ? {
-          weather: current.dayweather,
-          temp: current.daytemp,
-          humidity: current.daypower,
-          windDirection: current.daywind,
-          windPower: current.daypower,
-          reportTime: currentForecast.reportTime
+        current: live ? {
+          weather: live.weather,
+          temp: live.temperature,
+          humidity: live.humidity,
+          windDirection: live.winddirection,
+          windPower: live.windpower,
+          reportTime: live.reporttime
         } : null,
         forecast: forecast.map(day => ({
           date: day.date,
