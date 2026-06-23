@@ -340,7 +340,7 @@
       defaultWidth: 2,
       defaultHeight: 2,
       render: (widget) => renderBookmarksWidget(widget),
-      config: (widget, onSave) => renderBookmarksConfig(widget, onSave)
+      config: null
     },
     calendar: {
       name: '日历',
@@ -534,7 +534,7 @@
         items.push({
           icon: '➕',
           label: '添加书签',
-          action: () => configureWidget(widget)
+          action: () => openAddBookmarkModal(widget)
         });
 
         const layout = widget.data.layout || 'list';
@@ -1044,7 +1044,19 @@
     `;
   };
 
-  const renderBookmarksConfig = (widget, onSave) => {
+  const openAddBookmarkModal = (widget) => {
+    currentWidgetConfig = widget;
+    configTitle.textContent = '添加书签';
+    renderAddBookmarkForm(widget, async (data) => {
+      widget.data = { ...widget.data, ...data };
+      await saveState();
+      render();
+      closeModal(configModal);
+    });
+    openModal(configModal);
+  };
+
+  const renderAddBookmarkForm = (widget, onSave) => {
     configContent.innerHTML = `
       <div class="config-form">
         <label>
