@@ -23,6 +23,9 @@
   let resizeStartPos = { x: 0, y: 0, w: 0, h: 0 };
   let currentWidgetConfig = null;
   let contextMenu = null;
+  let sortableBookmarks = [];
+  let sortableWidget = null;
+  let draggedSortIdx = null;
 
   // DOM 引用
   const gridContainer = document.getElementById('gridContainer');
@@ -41,6 +44,10 @@
   const settingsLinkTarget = document.getElementById('settingsLinkTarget');
   const settingsTheme = document.getElementById('settingsTheme');
   const settingsCloseBtn = document.getElementById('settingsCloseBtn');
+  const bookmarkSortModal = document.getElementById('bookmarkSortModal');
+  const bookmarkSortList = document.getElementById('bookmarkSortList');
+  const bookmarkSortCancelBtn = document.getElementById('bookmarkSortCancelBtn');
+  const bookmarkSortConfirmBtn = document.getElementById('bookmarkSortConfirmBtn');
 
   // 工具函数
   const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -551,26 +558,10 @@
           }
         });
 
-        items.push({ divider: true });
-
         items.push({
-          icon: '🔤',
-          label: '按名称升序',
-          action: async () => {
-            widget.data.bookmarks.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
-            await saveState();
-            render();
-          }
-        });
-
-        items.push({
-          icon: '🔤',
-          label: '按名称降序',
-          action: async () => {
-            widget.data.bookmarks.sort((a, b) => b.name.localeCompare(a.name, 'zh-CN'));
-            await saveState();
-            render();
-          }
+          icon: '☰',
+          label: '书签排序',
+          action: () => openBookmarkSortModal(widget)
         });
       }
 
@@ -1081,6 +1072,27 @@
     openModal(configModal);
   };
 
+  const renderBookmarkSortList = () => {
+    bookmarkSortList.innerHTML = sortableBookmarks.map((bookmark, idx) => `
+      <div class="bookmark-sort-item" data-idx="${idx}" draggable="true">
+        <span class="drag-handle">☰</span>
+        ${bookmark.icon ?
+          `<img class="bookmark-sort-icon" src="${escapeHtml(bookmark.icon)}" alt="" />` :
+          `<div class="bookmark-sort-fallback">${escapeHtml(bookmark.name[0] || '?')}</div>`
+        }
+        <span class="bookmark-sort-name">${escapeHtml(bookmark.name)}</span>
+      </div>
+    `).join('');
+  };
+
+  const openBookmarkSortModal = (widget) => {
+    currentWidgetConfig = widget;
+    sortableWidget = widget;
+    sortableBookmarks = [...(widget.data.bookmarks || [])];
+    renderBookmarkSortList();
+    openModal(bookmarkSortModal);
+  };
+
   const renderAddBookmarkForm = (widget, onSave) => {
     configContent.innerHTML = `
       <div class="config-form">
@@ -1304,6 +1316,50 @@
 
   settingsCloseBtn.addEventListener('click', () => {
     closeModal(settingsModal);
+  });
+
+  // 书签排序弹窗事件
+  bookmarkSortList.addEventListener('dragstart', (e) => {
+    const item = e.target.closest('.bookmark-sort-item');
+    if (!item) return;
+    draggedSortIdx = parseInt(item.dataset.idx);
+    item.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+
+  bookmarkSortList.addEventListener('dragend', (e) => {
+    const item = e.target.closest('.bookmark-sort-item');
+    if (item) item.classList.remove('dragging');
+    draggedSortIdx = null;
+  });
+
+  bookmarkSortList.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    if (draggedSortIdx === null) return;
+
+    const targetItem = e.target.closest('.bookmark-sort-item');
+    if (!targetItem) return;
+
+    const targetIdx = parseInt(targetItem.dataset.idx);
+    if (draggedSortIdx === targetIdx) return;
+
+    const item = sortableBookmarks.splice(draggedSortIdx, 1)[0];
+    sortableBookmarks.splice(targetIdx, 0, item);
+    draggedSortIdx = targetIdx;
+    renderBookmarkSortList();
+  });
+
+  bookmarkSortConfirmBtn.addEventListener('click', async () => {
+    if (sortableWidget) {
+      sortableWidget.data.bookmarks = sortableBookmarks;
+      await saveState();
+      render();
+    }
+    closeModal(bookmarkSortModal);
+  });
+
+  bookmarkSortCancelBtn.addEventListener('click', () => {
+    closeModal(bookmarkSortModal);
   });
 
   // 组件类型选择
