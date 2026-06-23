@@ -1274,9 +1274,12 @@
       const currentInlineHtml = `
         <div class="weather-current-inline">
           <span class="weather-inline-city">${escapeHtml(weather.city || '本地')}</span>
-          <span class="weather-inline-icon">${getWeatherIcon(weather.current.weather)}</span>
-          <span class="weather-inline-temp">${weather.current.temp}°</span>
-          <span class="weather-inline-desc">${escapeHtml(weather.current.weather)}</span>
+          <div class="weather-inline-right">
+            <span class="weather-inline-icon">${getWeatherIcon(weather.current.weather)}</span>
+            <span class="weather-inline-desc">${escapeHtml(weather.current.weather)}</span>
+            <span class="weather-inline-temp">${weather.current.temp}°</span>
+            <span class="weather-inline-wind">${weather.current.windDirection || ''} ${weather.current.windPower || ''}</span>
+          </div>
         </div>
       `;
       return `<div class="weather-widget weather-layout-2x1">${currentInlineHtml}${forecastHtml}</div>`;
