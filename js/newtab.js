@@ -224,6 +224,46 @@
     return weekdays[date.getDay()];
   };
 
+  const imageUrlToDataUrl = (url) => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth || 32;
+          canvas.height = img.naturalHeight || 32;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        } catch (e) {
+          reject(e);
+        }
+      };
+      img.onerror = () => reject(new Error('Load failed'));
+      img.src = url;
+    });
+  };
+
+  const fetchFaviconAsDataUrl = async (domain) => {
+    const services = [
+      `https://api.iowen.cn/favicon/${domain}.png`,
+      `https://toolb.cn/favicon/${domain}`,
+      `https://favicon.cccyun.de/${domain}`,
+      `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`
+    ];
+
+    for (const url of services) {
+      try {
+        const dataUrl = await imageUrlToDataUrl(url);
+        if (dataUrl && dataUrl.length > 100) return dataUrl;
+      } catch (e) {
+        // try next service
+      }
+    }
+    return null;
+  };
+
   const fetchAmapLocation = async (key) => {
     const res = await fetch(`https://restapi.amap.com/v3/ip?key=${encodeURIComponent(key)}`);
     const data = await res.json();
@@ -1402,14 +1442,15 @@
       </div>
     `;
 
-    document.getElementById('configConfirmBtn').onclick = () => {
+    document.getElementById('configConfirmBtn').onclick = async () => {
       const name = document.getElementById('bookmarkName').value.trim();
       const url = document.getElementById('bookmarkUrl').value.trim();
 
       if (!name || !url) return;
 
       const bookmarks = widget.data.bookmarks || [];
-      const icon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(new URL(url).hostname)}&sz=128`;
+      const domain = new URL(url).hostname;
+      const icon = await fetchFaviconAsDataUrl(domain) || `https://api.iowen.cn/favicon/${domain}.png`;
 
       bookmarks.push({ name, url, icon });
       onSave({ bookmarks });
@@ -1433,13 +1474,14 @@
       </div>
     `;
 
-    document.getElementById('configConfirmBtn').onclick = () => {
+    document.getElementById('configConfirmBtn').onclick = async () => {
       const name = document.getElementById('bookmarkName').value.trim();
       const url = document.getElementById('bookmarkUrl').value.trim();
 
       if (!name || !url) return;
 
-      const icon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(new URL(url).hostname)}&sz=128`;
+      const domain = new URL(url).hostname;
+      const icon = await fetchFaviconAsDataUrl(domain) || `https://api.iowen.cn/favicon/${domain}.png`;
 
       widget.data.bookmarks[bookmarkIdx] = { name, url, icon };
       onSave(widget.data);
